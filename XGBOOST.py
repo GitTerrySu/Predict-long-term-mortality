@@ -91,7 +91,7 @@ scoring = {'report':    make_scorer(classification_report_with_accuracy_score),
 
 
 # fit model no training data (365)
-xgb_model =  xgb.XGBClassifier(objective='reg:squarederror', colsample_bytree=0.8, learning_rate=0.01,
+xgb_model =  xgb.XGBClassifier(objective='binary:logistic', colsample_bytree=0.8, learning_rate=0.01,
                                max_depth=15, alpha=50, n_estimators=600, scale_pos_weight=estimate_train+0.1)
 
 kfold = StratifiedKFold(n_splits=5, random_state=None)
@@ -179,4 +179,49 @@ plt.rcParams["font.weight"] = "bold"
 # plt.grid(False)
 # plt.show() 
 #plt.savefig('ROC(Testing,365).tif', format='tif', dpi=300, bbox_inches='tight')
+
+
+## Decision curve
+
+plt.figure(figsize=(16, 10))
+pt_arr = []
+net_bnf_arr = []
+treatall = []
+pred_ans = XGB_y_preds_proba_test[:, 1]
+
+
+for i in range(0,100,1):
+    pt = i /100
+    #compiute TP FP
+    pred_ans_clip = np.zeros(pred_ans.shape[0])
+    for j in range(pred_ans.shape[0]):
+        if pred_ans[j] >= pt:
+            pred_ans_clip[j] = 1
+        else:
+            pred_ans_clip[j] = 0
+    TP = np.sum((y_test) * np.round(pred_ans_clip))
+    FP = np.sum((1 - y_test) * np.round(pred_ans_clip))
+    net_bnf = ( TP-(FP * pt/(1-pt)) )/y_test.shape[0]
+    print('pt {}, TP {}, FP {}, net_bf {}'.format(pt,TP,FP,net_bnf))
+    pt_arr.append(pt)
+    net_bnf_arr.append(net_bnf)
+    treatall.append((sum(y_test)-(len(y_test)-sum(y_test))*pt/(1-pt))/len(y_test))
+
+
+
+plt.plot(pt_arr, net_bnf_arr, color='red', lw=4,label='XGBoost')             
+plt.plot(pt_arr, np.zeros(len(pt_arr)), color='k', lw=3, linestyle='--',label='Treat None')
+pt_np = np.array(pt_arr)
+plt.plot(pt_arr, treatall , color='black', lw=3 ,label='Treat ALL')
+plt.xlim([0.0, 1.0])
+plt.ylim([-0.1, 0.4])#plt.legend(loc="right")
+#ax=plt.gca()
+#x_major_locator=MultipleLocator(0.1)
+#ax.xaxis.set_major_locator(x_major_locator)
+plt.xlabel('Threshold Probability',fontsize=30)
+plt.ylabel('Net Benefit',fontsize=30)
+plt.xticks(fontsize=20)
+plt.yticks(fontsize=20)
+plt.legend(loc="upper right", fontsize=15)
+plt.grid()
 
